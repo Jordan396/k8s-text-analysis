@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wordcount-reducer-job
+  namespace: k8s-text-analysis
+spec:
+  template:
+    metadata:
+      name: wordcount-reducer-job
+      namespace: k8s-text-analysis
+    spec:
+      containers:
+      - name: wordcount-reducer-job
+        image: jordan396/k8s-text-analysis-wordcount-reducer:latest
+        volumeMounts:
+          - name: ceph-filesystem
+            mountPath: /mnt/ceph-filesystem
+        env:
+          - name: REDIS_WQ_NAME
+            value: "finished_queue_master"
+          - name: REDIS_WQ_HOST
+            value: "redis"
+          - name: INPUT_DATASETS_DIR_PATH
+            value: "/mnt/ceph-filesystem/processed_datasets"
+          - name: REDUCED_OUTPUT_FILENAME
+            value: "/mnt/ceph-filesystem/reduced_output/output.json"
+      volumes:
+        - name: ceph-filesystem
+          persistentVolumeClaim:
+            claimName: cephfs-pvc-k8s-text-analysis
+            readOnly: false
+      restartPolicy: OnFailure

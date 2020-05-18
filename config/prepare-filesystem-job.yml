@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prepare-filesystem-job
+  namespace: k8s-text-analysis
+spec:
+  template:
+    metadata:
+      name: prepare-filesystem-job
+      namespace: k8s-text-analysis
+    spec:
+      containers:
+      - name: prepare-filesystem-job
+        image: jordan396/k8s-text-analysis-prepare-filesystem:latest
+        volumeMounts:
+          - name: ceph-filesystem
+            mountPath: /mnt/ceph-filesystem
+      volumes:
+        - name: ceph-filesystem
+          persistentVolumeClaim:
+            claimName: cephfs-pvc-k8s-text-analysis
+            readOnly: false
+      restartPolicy: OnFailure

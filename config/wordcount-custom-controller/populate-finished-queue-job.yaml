@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: populate-finished-queue-job
+  namespace: k8s-text-analysis
+spec:
+  template:
+    metadata:
+      name: populate-finished-queue-job
+      namespace: k8s-text-analysis
+    spec:
+      containers:
+      - name: populate-finished-queue-job
+        image: jordan396/k8s-text-analysis-populate-redis-queue:latest
+        volumeMounts:
+          - name: ceph-filesystem
+            mountPath: /mnt/ceph-filesystem
+        env:
+          - name: REDIS_WQ_NAME
+            value: "finished_queue_master"
+          - name: REDIS_WQ_HOST
+            value: "redis"
+          - name: KEYS_DIR_PATH
+            value: "/mnt/ceph-filesystem/processed_datasets"
+      volumes:
+        - name: ceph-filesystem
+          persistentVolumeClaim:
+            claimName: cephfs-pvc-k8s-text-analysis
+            readOnly: false
+      restartPolicy: OnFailure
