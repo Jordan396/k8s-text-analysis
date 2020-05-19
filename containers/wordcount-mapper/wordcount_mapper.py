@@ -33,7 +33,7 @@ def wordcount_task(filename, pattern):
       with open(output_filename, 'w') as fp:
         json.dump(dict_format, fp)
       # For illustration purposes
-      time.sleep(15)
+      time.sleep(5)
 
 def get_word_list_pattern():
   wordList = []
@@ -46,7 +46,7 @@ def get_word_list_pattern():
 def main():
   pattern = get_word_list_pattern()
   while not q.empty():
-    item = q.lease(lease_secs=90, block=True, timeout=2) 
+    item = q.lease(lease_secs=30, block=True, timeout=2) 
     if item is not None:
       itemstr = item.decode("utf-8")
       print("Working on " + itemstr)
@@ -54,7 +54,7 @@ def main():
       wordcount_task(itemstr, pattern)
       q.complete(item)
     else:
-      print("Waiting for work")
+      break
   print("Queue empty, exiting")
 
 if __name__ == "__main__": 

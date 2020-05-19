@@ -1,0 +1,297 @@
+# in a workflow. The resource template type accepts any k8s manifest
+# (including CRDs) and can perform any kubectl action against it (e.g. create,
+# apply, delete, patch).
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  name: wordcount-workflow
+  namespace: k8s-text-analysis
+spec:
+  entrypoint: start-workflow
+  templates:
+  - name:  start-workflow
+    steps:
+    - - name: populate-dispatch-queue-job
+        template: populate-dispatch-queue-job-template
+    - - name: wordcount-mapper-job
+        template: wordcount-mapper-job-template
+    - - name: populate-finished-queue-job
+        template: populate-finished-queue-job-template
+    - - name: wordcount-reducer-job
+        template: wordcount-reducer-job-template
+    - - name: generate-wordcloud-job
+        template: generate-wordcloud-job-template
+    - - name: clear-filesystem-job
+        template: clear-filesystem-job-template
+  - name: populate-dispatch-queue-job-template
+    resource:                   # indicates that this is a resource template
+      action: create            # can be any kubectl action (e.g. create, delete, apply, patch)
+      setOwnerReference: true
+      successCondition: status.succeeded > 0
+      failureCondition: status.failed > 3
+      manifest: |
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: populate-dispatch-queue-job
+          namespace: k8s-text-analysis
+          ownerReferences:
+            - apiVersion: argoproj.io/v1alpha1
+              controller: false
+              blockOwnerDeletion: false
+              kind: Workflow
+              name: "{{workflow.name}}"
+              uid: "{{workflow.uid}}"
+        spec:
+          template:
+            metadata:
+              name: populate-dispatch-queue-job
+              namespace: k8s-text-analysis
+            spec:
+              containers:
+              - name: populate-dispatch-queue-job
+                image: jordan396/k8s-text-analysis-populate-redis-queue:latest
+                volumeMounts:
+                  - name: ceph-filesystem
+                    mountPath: /mnt/ceph-filesystem
+                env:
+                  - name: REDIS_WQ_NAME
+                    value: "dispatch_queue_master"
+                  - name: REDIS_WQ_HOST
+                    value: "redis"
+                  - name: KEYS_DIR_PATH
+                    value: "/mnt/ceph-filesystem/input_datasets"
+                  - name: PYTHONUNBUFFERED
+                    value: "0"
+              volumes:
+                - name: ceph-filesystem
+                  persistentVolumeClaim:
+                    claimName: cephfs-pvc-k8s-text-analysis
+                    readOnly: false
+              restartPolicy: OnFailure
+  - name: wordcount-mapper-job-template
+    resource:                   # indicates that this is a resource template
+      action: create            # can be any kubectl action (e.g. create, delete, apply, patch)
+      setOwnerReference: true
+      successCondition: status.succeeded > 0
+      failureCondition: status.failed > 3
+      manifest: |
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: wordcount-mapper-job
+          namespace: k8s-text-analysis
+          ownerReferences:
+            - apiVersion: argoproj.io/v1alpha1
+              controller: false
+              blockOwnerDeletion: false
+              kind: Workflow
+              name: "{{workflow.name}}"
+              uid: "{{workflow.uid}}"
+        spec:
+          parallelism: 3
+          template:
+            metadata:
+              name: wordcount-mapper-job
+              namespace: k8s-text-analysis
+            spec:
+              containers:
+              - name: wordcount-mapper-job
+                image: jordan396/k8s-text-analysis-wordcount-mapper:latest
+                volumeMounts:
+                  - name: ceph-filesystem
+                    mountPath: /mnt/ceph-filesystem
+                env:
+                  - name: REDIS_WQ_NAME
+                    value: "dispatch_queue_master"
+                  - name: REDIS_WQ_HOST
+                    value: "redis"
+                  - name: WORDLIST_FILE_PATH
+                    value: "/mnt/ceph-filesystem/wordlist/wordlist.txt"
+                  - name: INPUT_DATASETS_DIR_PATH
+                    value: "/mnt/ceph-filesystem/input_datasets"
+                  - name: PROCESSED_DATASETS_DIR_PATH
+                    value: "/mnt/ceph-filesystem/processed_datasets"
+                  - name: PYTHONUNBUFFERED
+                    value: "0"
+              volumes:
+                - name: ceph-filesystem
+                  persistentVolumeClaim:
+                    claimName: cephfs-pvc-k8s-text-analysis
+                    readOnly: false
+              restartPolicy: OnFailure
+  - name: populate-finished-queue-job-template
+    resource:                   # indicates that this is a resource template
+      action: create            # can be any kubectl action (e.g. create, delete, apply, patch)
+      setOwnerReference: true
+      successCondition: status.succeeded > 0
+      failureCondition: status.failed > 3
+      manifest: |
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: populate-finished-queue-job
+          namespace: k8s-text-analysis
+          ownerReferences:
+            - apiVersion: argoproj.io/v1alpha1
+              controller: false
+              blockOwnerDeletion: false
+              kind: Workflow
+              name: "{{workflow.name}}"
+              uid: "{{workflow.uid}}"
+        spec:
+          template:
+            metadata:
+              name: populate-finished-queue-job
+              namespace: k8s-text-analysis
+            spec:
+              containers:
+              - name: populate-finished-queue-job
+                image: jordan396/k8s-text-analysis-populate-redis-queue:latest
+                volumeMounts:
+                  - name: ceph-filesystem
+                    mountPath: /mnt/ceph-filesystem
+                env:
+                  - name: REDIS_WQ_NAME
+                    value: "finished_queue_master"
+                  - name: REDIS_WQ_HOST
+                    value: "redis"
+                  - name: KEYS_DIR_PATH
+                    value: "/mnt/ceph-filesystem/processed_datasets"
+                  - name: PYTHONUNBUFFERED
+                    value: "0"
+              volumes:
+                - name: ceph-filesystem
+                  persistentVolumeClaim:
+                    claimName: cephfs-pvc-k8s-text-analysis
+                    readOnly: false
+              restartPolicy: OnFailure
+  - name: wordcount-reducer-job-template
+    resource:                   # indicates that this is a resource template
+      action: create            # can be any kubectl action (e.g. create, delete, apply, patch)
+      setOwnerReference: true
+      successCondition: status.succeeded > 0
+      failureCondition: status.failed > 3
+      manifest: |
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: wordcount-reducer-job
+          namespace: k8s-text-analysis
+          ownerReferences:
+            - apiVersion: argoproj.io/v1alpha1
+              controller: false
+              blockOwnerDeletion: false
+              kind: Workflow
+              name: "{{workflow.name}}"
+              uid: "{{workflow.uid}}"
+        spec:
+          template:
+            metadata:
+              name: wordcount-reducer-job
+              namespace: k8s-text-analysis
+            spec:
+              containers:
+              - name: wordcount-reducer-job
+                image: jordan396/k8s-text-analysis-wordcount-reducer:latest
+                volumeMounts:
+                  - name: ceph-filesystem
+                    mountPath: /mnt/ceph-filesystem
+                env:
+                  - name: REDIS_WQ_NAME
+                    value: "finished_queue_master"
+                  - name: REDIS_WQ_HOST
+                    value: "redis"
+                  - name: INPUT_DATASETS_DIR_PATH
+                    value: "/mnt/ceph-filesystem/processed_datasets"
+                  - name: REDUCED_OUTPUT_FILENAME
+                    value: "/mnt/ceph-filesystem/reduced_output/output.json"
+                  - name: PYTHONUNBUFFERED
+                    value: "0"
+              volumes:
+                - name: ceph-filesystem
+                  persistentVolumeClaim:
+                    claimName: cephfs-pvc-k8s-text-analysis
+                    readOnly: false
+              restartPolicy: OnFailure
+  - name: generate-wordcloud-job-template
+    resource:                   # indicates that this is a resource template
+      action: create            # can be any kubectl action (e.g. create, delete, apply, patch)
+      setOwnerReference: true
+      successCondition: status.succeeded > 0
+      failureCondition: status.failed > 3
+      manifest: |
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: generate-wordcloud-job
+          namespace: k8s-text-analysis
+          ownerReferences:
+            - apiVersion: argoproj.io/v1alpha1
+              controller: false
+              blockOwnerDeletion: false
+              kind: Workflow
+              name: "{{workflow.name}}"
+              uid: "{{workflow.uid}}"
+        spec:
+          template:
+            metadata:
+              name: generate-wordcloud-job
+              namespace: k8s-text-analysis
+            spec:
+              containers:
+              - name: generate-wordcloud-job
+                image: jordan396/k8s-text-analysis-generate-wordcloud:latest
+                volumeMounts:
+                  - name: ceph-filesystem
+                    mountPath: /mnt/ceph-filesystem
+                env:
+                  - name: REDUCED_OUTPUT_FILENAME
+                    value: "/mnt/ceph-filesystem/reduced_output/output.json"
+                  - name: WORDCLOUD_FILENAME
+                    value: "/mnt/ceph-filesystem/wordcloud_image/wordcloud.png"
+                  - name: PYTHONUNBUFFERED
+                    value: "0"
+              volumes:
+                - name: ceph-filesystem
+                  persistentVolumeClaim:
+                    claimName: cephfs-pvc-k8s-text-analysis
+                    readOnly: false
+              restartPolicy: OnFailure
+  - name: clear-filesystem-job-template
+    resource:                   # indicates that this is a resource template
+      action: create            # can be any kubectl action (e.g. create, delete, apply, patch)
+      setOwnerReference: true
+      successCondition: status.succeeded > 0
+      failureCondition: status.failed > 3
+      manifest: |
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: clear-filesystem-job
+          namespace: k8s-text-analysis
+          ownerReferences:
+            - apiVersion: argoproj.io/v1alpha1
+              controller: false
+              blockOwnerDeletion: false
+              kind: Workflow
+              name: "{{workflow.name}}"
+              uid: "{{workflow.uid}}"
+        spec:
+          template:
+            metadata:
+              name: clear-filesystem-job
+              namespace: k8s-text-analysis
+            spec:
+              containers:
+              - name: clear-filesystem-job
+                image: jordan396/k8s-text-analysis-clear-filesystem:latest
+                volumeMounts:
+                  - name: ceph-filesystem
+                    mountPath: /mnt/ceph-filesystem
+              volumes:
+                - name: ceph-filesystem
+                  persistentVolumeClaim:
+                    claimName: cephfs-pvc-k8s-text-analysis
+                    readOnly: false
+              restartPolicy: OnFailure
