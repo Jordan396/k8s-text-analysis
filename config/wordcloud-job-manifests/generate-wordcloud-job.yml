@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: generate-wordcloud-job
+  namespace: k8s-text-analysis
+spec:
+  template:
+    metadata:
+      name: generate-wordcloud-job
+      namespace: k8s-text-analysis
+    spec:
+      containers:
+      - name: generate-wordcloud-job
+        image: jordan396/k8s-text-analysis-generate-wordcloud:latest
+        volumeMounts:
+          - name: ceph-filesystem
+            mountPath: /mnt/ceph-filesystem
+        env:
+          - name: REDUCED_OUTPUT_FILENAME
+            value: "/mnt/ceph-filesystem/reduced_output/output.json"
+          - name: WORDCLOUD_FILENAME
+            value: "/mnt/ceph-filesystem/wordcloud_image/wordcloud.png"
+      volumes:
+        - name: ceph-filesystem
+          persistentVolumeClaim:
+            claimName: cephfs-pvc-k8s-text-analysis
+            readOnly: false
+      restartPolicy: OnFailure

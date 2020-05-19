@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wordcount-mapper-job
+  namespace: k8s-text-analysis
+spec:
+  parallelism: 3
+  template:
+    metadata:
+      name: wordcount-mapper-job
+      namespace: k8s-text-analysis
+    spec:
+      containers:
+      - name: wordcount-mapper-job
+        image: jordan396/k8s-text-analysis-wordcount-mapper:latest
+        volumeMounts:
+          - name: ceph-filesystem
+            mountPath: /mnt/ceph-filesystem
+        env:
+          - name: REDIS_WQ_NAME
+            value: "dispatch_queue_master"
+          - name: REDIS_WQ_HOST
+            value: "redis"
+          - name: WORDLIST_FILE_PATH
+            value: "/mnt/ceph-filesystem/wordlist/wordlist.txt"
+          - name: INPUT_DATASETS_DIR_PATH
+            value: "/mnt/ceph-filesystem/input_datasets"
+          - name: PROCESSED_DATASETS_DIR_PATH
+            value: "/mnt/ceph-filesystem/processed_datasets"
+      volumes:
+        - name: ceph-filesystem
+          persistentVolumeClaim:
+            claimName: cephfs-pvc-k8s-text-analysis
+            readOnly: false
+      restartPolicy: OnFailure

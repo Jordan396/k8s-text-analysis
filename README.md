@@ -30,3 +30,5 @@ Access ceph interface, for debugging purposes
 ```
 kubectl -n k8s-text-analysis exec -it <some-pod> -- /bin/bash
 ```
+
+
