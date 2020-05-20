@@ -1,5 +1,9 @@
 ## Presentation Demo
 ```
+# Set up
+watch kubectl get pods,jobs,wf -n k8s-text-analysis
+```
+```
 # Demo 1 - Manual Job Deployments
 
 kubectl apply -f ./config/base-config.yml
