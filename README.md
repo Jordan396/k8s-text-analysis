@@ -1,4 +1,4 @@
-# k8s-text-analysis
+# k8s-wordcount
 ## Getting Started
 ![system architecture](drawio/system-architecture.png)
 
